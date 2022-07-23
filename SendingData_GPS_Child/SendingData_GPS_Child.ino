@@ -1,30 +1,3 @@
-<<<<<<< HEAD
-#include <TinyGPS++.h>
-#include <SoftwareSerial.h>
-SoftwareSerial serial_gps(D2, D1); 
-TinyGPSPlus gps;
-double latitude, longitude;
-
-void setup() {
-  Serial.begin(9600);
-  serial_gps.begin(9600);
-
-}
-
-void loop() {
-  
-  while(serial_gps.available()) {
-    gps.encode(serial_gps.read());
-  }
-  if(gps.location.isUpdated()) {
-    latitude = gps.location.lat();
-    longitude = gps.location.lng();
-    String link = "www.google.com/maps/place/" + String(latitude) + "," + String(longitude) ;
-    Serial.println(link);
-    delay(500);
-  }
-  
-=======
 #include <SoftwareSerial.h>
 #include <TinyGPS.h> 
 
@@ -79,5 +52,4 @@ void loop()
   Serial.println(failed);
   if (chars == 0)
     Serial.println("** Tidak ada Data Masuk, Periksa Wiring **");
->>>>>>> 9a3f70a35ea00a6a5b00b806cd0b810b9ebbac91
 }
