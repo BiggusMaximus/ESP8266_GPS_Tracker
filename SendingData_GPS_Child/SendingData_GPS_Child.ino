@@ -1,55 +1,74 @@
+<<<<<<< HEAD
+#include <TinyGPS++.h>
 #include <SoftwareSerial.h>
-#include <TinyGPS.h> 
+#include <ESP8266WiFi.h>
+#include <espnow.h>
 
-TinyGPS gps;
-SoftwareSerial ss(D2, D1);
+SoftwareSerial serial_gps(D2, D1); 
+TinyGPSPlus gps;
+float latitude, longitude;
+String link;
+uint8_t broadcastAddress[] = {0xC8, 0xC9, 0xA3, 0x6A, 0xA4, 0x69};
 
-void setup()
-{
-  Serial.begin(9600);
-  ss.begin(9600);
+typedef struct struct_message {
+  float nilai_lat, nilai_lot;
+  String gps_link;
+} struct_message;
 
+// Create a struct_message called myData
+struct_message myData;
+
+unsigned long lastTime = 0;  
+unsigned long timerDelay = 1000;
+
+void OnDataSent(uint8_t *mac_addr, uint8_t sendStatus) {
+  Serial.print("Last Packet Send Status: ");
+  if (sendStatus == 0){
+    Serial.println("Delivery success");
+  }
+  else{
+    Serial.println("Delivery fail");
+  }
 }
 
-void loop()
-{
-  bool newData = false;
-  unsigned long chars;
-  unsigned short sentences, failed;
-
-  for (unsigned long start = millis(); millis() - start < 1000;)
-  {
-    while (ss.available())
-    {
-      char c = ss.read();
-      // Serial.write(c); // hilangkan koment jika mau melihat data yang dikirim dari modul GPS
-      if (gps.encode(c)) // Parsing semua data
-        newData = true;
-    }
-  }
-
-  if (newData)
-  {
-    float flat, flon;
-    unsigned long age;
-    gps.f_get_position(&flat, &flon, &age);
-    Serial.print("LAT=");
-    Serial.print(flat == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flat, 6);
-    Serial.print(" LON=");
-    Serial.print(flon == TinyGPS::GPS_INVALID_F_ANGLE ? 0.0 : flon, 6);
-    Serial.print(" SAT=");
-    Serial.print(gps.satellites() == TinyGPS::GPS_INVALID_SATELLITES ? 0 : gps.satellites());
-    Serial.print(" PREC=");
-    Serial.print(gps.hdop() == TinyGPS::GPS_INVALID_HDOP ? 0 : gps.hdop());
-  }
+void setup() {
+  Serial.begin(115200);
+  serial_gps.begin(9600);
+  WiFi.mode(WIFI_STA);
   
-  gps.stats(&chars, &sentences, &failed);
-  Serial.print(" CHARS=");
-  Serial.print(chars);
-  Serial.print(" SENTENCES=");
-  Serial.print(sentences);
-  Serial.print(" CSUM ERR=");
-  Serial.println(failed);
-  if (chars == 0)
-    Serial.println("** Tidak ada Data Masuk, Periksa Wiring **");
+  if (esp_now_init() != 0) {
+    Serial.println("Error initializing ESP-NOW");
+    return;
+  }
+
+  // Once ESPNow is successfully Init, we will register for Send CB to
+  // get the status of Trasnmitted packet
+  esp_now_set_self_role(ESP_NOW_ROLE_CONTROLLER);
+  esp_now_register_send_cb(OnDataSent);
+  
+  // Register peer
+  esp_now_add_peer(broadcastAddress, ESP_NOW_ROLE_SLAVE, 1, NULL, 0);
+}
+
+void loop() {
+  
+  while(serial_gps.available()) {
+    gps.encode(serial_gps.read());
+  }
+  if(gps.location.isUpdated()) {
+    latitude = gps.location.lat();
+    longitude = gps.location.lng();
+    link = "www.google.com/maps/place/" + String(latitude) + "," + String(longitude) ;
+    Serial.println(link);
+    delay(500);
+  }
+  if ((millis() - lastTime) > timerDelay) {
+    myData.nilai_lat = latitude;
+    myData.nilai_long = longitude;
+    myData.gps_link = link;
+    // Send message via ESP-NOW
+    esp_now_send(broadcastAddress, (uint8_t *) &myData, sizeof(myData));
+
+    lastTime = millis();
+  }
 }
